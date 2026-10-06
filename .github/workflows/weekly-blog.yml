@@ -1,0 +1,66 @@
+name: Weekly blog post task
+
+on:
+  schedule:
+    # Mondays at 13:00 UTC (~9:00 AM Eastern during daylight time)
+    - cron: "0 13 * * 1"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  open-task:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create weekly lab-note issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `Weekly lab note — ${new Date().toISOString().slice(0, 10)}`;
+            const body = [
+              "## Weekly PlusPlus Cyber lab note",
+              "",
+              "Draft a new defensive cybersecurity blog post for this site.",
+              "",
+              "### Guidelines",
+              "- Match existing posts in `_posts/` (lab-notebook tone, small-scale infrastructure).",
+              "- Practical topics: hardening, VPN/remote access, backups, logging, network hygiene, MFA, email auth.",
+              "- No offensive exploit steps, malware, or attack PoCs.",
+              "- Avoid repeating the most recent post title/topic.",
+              "- Open a draft PR; do not merge unless asked.",
+              "",
+              "Created by the weekly schedule in `.github/workflows/weekly-blog.yml`.",
+            ].join("\n");
+
+            const { data: openIssues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              per_page: 20,
+            });
+
+            if (openIssues.some((issue) => issue.title.startsWith("Weekly lab note"))) {
+              core.info("An open weekly lab-note issue already exists; skipping.");
+              return;
+            }
+
+            try {
+              await github.rest.issues.createLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: "weekly-blog",
+                color: "0E8A16",
+                description: "Recurring weekly blog post task",
+              });
+            } catch (error) {
+              if (error.status !== 422) throw error;
+            }
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+              labels: ["weekly-blog"],
+            });
